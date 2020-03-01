@@ -10,7 +10,7 @@ from flask import render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, current_user, login_required
 from app.forms import LoginForm
 from app.models import UserProfile
-
+from werkzeug.security import check_password_hash
 
 ###
 # Routing for your application.
@@ -31,24 +31,62 @@ def about():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     form = LoginForm()
-    if request.method == "POST":
-        # change this to actually validate the entire form submission
-        # and not just one field
-        if form.username.data:
-            # Get the username and password values from the form.
+    if current_user.is_authenticated:
+        # if user is already logged in, just redirect them to our secure page
+        # or some other page like a dashboard
+        return redirect(url_for('secure_page'))
 
-            # using your model, query database for a user based on the username
-            # and password submitted. Remember you need to compare the password hash.
-            # You will need to import the appropriate function to do so.
-            # Then store the result of that query to a `user` variable so it can be
-            # passed to the login_user() method below.
+    # Here we use a class of some kind to represent and validate our
+    # client-side form data. For example, WTForms is a library that will
+    # handle this for us, and we use a custom LoginForm to validate.
+    form = LoginForm()
+    # Login and validate the user.
+    if request.method == 'POST' and form.validate_on_submit():
+        # Query our database to see if the username and password entered
+        # match a user that is in the database.
+        username = form.username.data
+        password = form.password.data
 
-            # get user id, load into session
-            login_user(user)
+        # user = UserProfile.query.filter_by(username=username, password=password)\
+        # .first()
+        # or
+        user = UserProfile.query.filter_by(username=username).first()
 
-            # remember to flash a message to the user
-            return redirect(url_for("home"))  # they should be redirected to a secure-page route instead
-    return render_template("login.html", form=form)
+        if user is not None and check_password_hash(user.password, password):
+            remember_me = False
+
+            if 'remember_me' in request.form:
+                remember_me = True
+
+            # If the user is not blank, meaning if a user was actually found,
+            # then login the user and create the user session.
+            # user should be an instance of your `User` class
+            login_user(user, remember=remember_me)
+
+            flash('Logged in successfully.', 'success')
+
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('home'))
+        else:
+            flash('Username or Password is incorrect.', 'danger')
+
+    flash_errors(form)
+    return render_template('login.html', form=form)
+
+# Flash errors from the form if validation fails with Flask-WTF
+# http://flask.pocoo.org/snippets/12/
+def flash_errors(form):
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(u"Error in the %s field - %s" % (
+                getattr(form, field).label.text,
+                error
+            ), 'danger')
+
+
+###
+# The functions below should be applicable to all Flask apps.
+###
 
 
 # user_loader callback. This callback is used to reload the user object from
