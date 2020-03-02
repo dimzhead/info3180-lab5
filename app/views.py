@@ -84,6 +84,21 @@ def flash_errors(form):
             ), 'danger')
 
 
+
+@app.route('/secure-page')
+@login_required 
+def secure_page():
+    return render_template('secure_page.html')
+
+
+
+@app.route('/logout')
+@login_required 
+def logout():
+    logout_user()
+    return render_template('home.html')
+
+
 ###
 # The functions below should be applicable to all Flask apps.
 ###
